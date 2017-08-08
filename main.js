@@ -1,24 +1,14 @@
 var gl;
+
 var squareVerticesBuffer;
+var triangleVerticesBuffer;
+
 var mvMatrix;
 var shaderProgram;
 var vertexPositionAttribute;
 var perspectiveMatrix;
 
 var horizAspect = 480.0/640.0;
-function initBuffers() {
-  squareVerticesBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
-
-  var vertices = [
-    1.0,  1.0,  0.0,
-    -1.0, 1.0,  0.0,
-    1.0,  -1.0,  0.0,
-    -1.0, -1.0,  0.0
-  ];
-
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-}
 
 
 function start() {
@@ -66,6 +56,7 @@ function initShaders() {
   var vertexShader = getShader(gl, "shader-vs");
 
   // 创建着色器
+  // Program是系统中原生于WebGL里的二进制码，你可以把它看作是一种在显卡中运行指定指令的方法
   shaderProgram = gl.createProgram();
   gl.attachShader(shaderProgram, vertexShader);
   gl.attachShader(shaderProgram, fragmentShader);
@@ -78,43 +69,107 @@ function initShaders() {
 
   gl.useProgram(shaderProgram);
 
-  vertexPositionAttribute = gl.getAttributeLocation(shaderProgram, "aVertexPosition");
+  // The first thing we should do is look up the location of the attribute for the program we just created
+  vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
   gl.enableVertexAttribArray(vertexPositionAttribute);
 }
 
-function getShader(gl, id) {
+// function getShader(gl, id) {
+//   var shaderScript, theSource, currentChild, shader;
+
+//   shaderScript = document.getElementById(id);
+
+//   if (!shaderScript) {
+//     return null;
+//   }
+
+//   theSource = "";
+//   currentChild = shaderScript.firstChild;
+
+//   while(currentChild) {
+//     if (currentChild.nodeType == 3) {
+//       theSource += currentChild.textContent;
+//     }
+//     currentChild = currentChild.nextSibling;
+//   }
+//   // 片段着色器 
+//   if (shaderScript.type == 'x-shader/x-fragment') {
+//     shader = gl.createShader(gl.FRAGMENT_SHADER);
+//   }
+//   // 定点着色器 
+//   else if (shaderScript.type == "x-shader/x-vertex") {
+//     shader = gl.createShader(gl.VERTEX_SHADER);
+//   } else {
+//     // Unknown shader type
+//     return null;
+//   }
+
+//   // send
+//   return shader;
+// }
+
+function getShader(gl, id, type) {
   var shaderScript, theSource, currentChild, shader;
-
+  
   shaderScript = document.getElementById(id);
-
+  
   if (!shaderScript) {
     return null;
   }
-
-  theSource = "";
-  currentChild = shaderScript.firstChild;
-
-  while(currentChild) {
-    if (currentChild.nodeType == 3) {
-      theSource += currentChild.textContent;
+  
+  theSource = shaderScript.text;
+  if (!type) {
+    if (shaderScript.type == 'x-shader/x-fragment') {
+      type = gl.FRAGMENT_SHADER;
+    } else if (shaderScript.type == 'x-shader/x-vertex') {
+      type = gl.VERTEX_SHADER;
+    } else {
+      // Unknown shader type
+      return null;
     }
-    currentChild = currentChild.nextSibling;
   }
-  // 片段着色器 
-  if (shaderScript.type == 'x-shader/x-fragment') {
-    shader = gl.createShader(gl.FRAGMENT_SHADER);
+  shader = gl.createShader(type);
+  gl.shaderSource(shader, theSource);
+    
+  // Compile the shader program
+  gl.compileShader(shader);  
+    
+  // See if it compiled successfully
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {  
+      console.log('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));  
+      gl.deleteShader(shader);
+      return null;  
   }
-  // 定点着色器 
-  else if (shaderScript.type == "x-shader/x-vertex") {
-    shader = gl.createShader(gl.VERTEX_SHADER);
-  } else {
-    // Unknown shader type
-    return null;
-  }
-
-  // send
+    
   return shader;
 }
+
+function initBuffers() {
+  //  buffer 是存储在显卡中的，对于大型大的绘图，这样会更加有效率
+  squareVerticesBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
+
+  var vertices = [
+    1.0,  1.0,  0.0,
+    -1.0, 1.0,  0.0,
+    1.0,  -1.0,  0.0,
+    -1.0, -1.0,  0.0
+  ];
+
+  // 通过 Float32Array  将普通的 JS 列表变为可被 WebGL 处理的 buffer
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+  triangleVerticesBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVerticesBuffer);
+  vertices = [
+    1.0,  1.0,  0.0,
+    -1.0, 1.0,  0.0,
+    // 1.0,  -1.0,  0.0,
+    -1.0, -1.0,  0.0
+  ];
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+}
+
 
 function drawScene() {
   // 用背景色擦除上下文
@@ -125,12 +180,25 @@ function drawScene() {
   loadIdentity();
 
   // 把正方形放在距离摄像机6个单位的的位置
-  mvTranslate([-0.0, 0.0, -6.0]);
+  mvTranslate([-1.5, 0.0, -6.0]);
 
+  // 如果要使用一个数组对象，就需要调用 gl.bindBuffer 来将其指定为当前数组对象，然后在调用
+  // 代码进行操作。
   gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
   gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
+  
+  // setMatrixUniforms 函数将会超越网页文件的范畴，将以上的矩阵操作推送到到显卡
   setMatrixUniforms();
+
+  // 换一种通俗的说法就是“用之前我给你的顶点数组来绘制一个三角形，顶点从 0 到 3”。
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  mvTranslate([3, 0.0, 0]);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVerticesBuffer);
+  gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
+  setMatrixUniforms();
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 3);
 }
 
 function loadIdentity() {
@@ -152,3 +220,4 @@ function setMatrixUniforms() {
   var mvUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
   gl.uniformMatrix4fv(mvUniform, false, new Float32Array(mvMatrix.flatten()));
 }
+
