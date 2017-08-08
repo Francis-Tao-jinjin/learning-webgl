@@ -1,0 +1,39 @@
+<html>
+  <head>
+    <meta charset="utf-8" >
+    <link rel="stylesheet" href="./webgl.css" type="text/css">
+    <script src="../sylvester.js" type="text/javascript"></script>
+    <script src="../glUtils.js" type="text/javascript"></script>
+    <!-- gl_FragColor 是一个 GL 内置的特殊变量，用于片段的色彩填充。如下所示，设定它的值就是设定每个像素的颜色。 -->
+    <script id="shader-fs" type="x-shader/x-fragment">
+      precision mediump float;
+      varying vec4 vColor;
+      void main(void) {
+        gl_FragColor = vColor;
+      }
+    </script>
+
+    <!-- 顶点着色器定义了每个顶点的位置和形状。 -->
+    <script id="shader-vs" type="x-shader/x-vertex">
+      attribute vec3 aVertexPosition;
+      attribute vec4 aVertexColor;
+
+      uniform mat4 uMVMatrix;
+      uniform mat4 uPMatrix;
+
+      varying vec4 vColor;
+
+      void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        vColor = aVertexColor;
+      }
+    </script>
+
+  </head>
+  <body onload="start()">
+    <canvas id="glcanvas" width="640" height="480">
+      Your browser doesn't appear to support the HTML5 <code>&lt;canvas&gt;</code> element.
+    </canvas>
+    <script src="./main.js"></script>
+  </body>
+</html>

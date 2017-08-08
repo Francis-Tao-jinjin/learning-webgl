@@ -1,11 +1,12 @@
 var gl;
 
-var squareVerticesBuffer;
-var triangleVerticesBuffer;
+var squareVertexColorBuffer;
+var squareVertexPositionBuffer;
+var triangleVertexColorBuffer;
+var triangleVertexPositionBuffer;
 
 var mvMatrix;
 var shaderProgram;
-var vertexPositionAttribute;
 var perspectiveMatrix;
 
 var horizAspect = 480.0/640.0;
@@ -69,44 +70,15 @@ function initShaders() {
 
   gl.useProgram(shaderProgram);
 
-  // The first thing we should do is look up the location of the attribute for the program we just created
-  vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-  gl.enableVertexAttribArray(vertexPositionAttribute);
+  shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+  gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+  shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+  gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+  
+  shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMatrix');
+  shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix');
 }
-
-// function getShader(gl, id) {
-//   var shaderScript, theSource, currentChild, shader;
-
-//   shaderScript = document.getElementById(id);
-
-//   if (!shaderScript) {
-//     return null;
-//   }
-
-//   theSource = "";
-//   currentChild = shaderScript.firstChild;
-
-//   while(currentChild) {
-//     if (currentChild.nodeType == 3) {
-//       theSource += currentChild.textContent;
-//     }
-//     currentChild = currentChild.nextSibling;
-//   }
-//   // 片段着色器 
-//   if (shaderScript.type == 'x-shader/x-fragment') {
-//     shader = gl.createShader(gl.FRAGMENT_SHADER);
-//   }
-//   // 定点着色器 
-//   else if (shaderScript.type == "x-shader/x-vertex") {
-//     shader = gl.createShader(gl.VERTEX_SHADER);
-//   } else {
-//     // Unknown shader type
-//     return null;
-//   }
-
-//   // send
-//   return shader;
-// }
 
 function getShader(gl, id, type) {
   var shaderScript, theSource, currentChild, shader;
@@ -146,28 +118,54 @@ function getShader(gl, id, type) {
 
 function initBuffers() {
   //  buffer 是存储在显卡中的，对于大型大的绘图，这样会更加有效率
-  squareVerticesBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
-
+  squareVertexPositionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
   var vertices = [
     1.0,  1.0,  0.0,
     -1.0, 1.0,  0.0,
     1.0,  -1.0,  0.0,
     -1.0, -1.0,  0.0
   ];
-
   // 通过 Float32Array  将普通的 JS 列表变为可被 WebGL 处理的 buffer
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+  squareVertexPositionBuffer.itemSize = 3;
+  squareVertexPositionBuffer.numItems = 4;
 
-  triangleVerticesBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVerticesBuffer);
+  squareVertexColorBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+  // 一个点对应一个颜色
+  var colors = [
+    1.0, 0.0, 0.0, 1.0,
+    0.0, 1.0, 0.0, 1.0,
+    0.0, 0.0, 1.0, 1.0,
+    0.5, 0.5, 0.5, 0.5
+  ];
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+  squareVertexColorBuffer.itemSize = 4;
+  squareVertexColorBuffer.numItems = 4;
+
+  triangleVertexPositionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
   vertices = [
-    1.0,  1.0,  0.0,
-    -1.0, 1.0,  0.0,
-    // 1.0,  -1.0,  0.0,
-    -1.0, -1.0,  0.0
+    0.0,  1.0,  0.0,
+    -1.0, -1.0,  0.0,
+    1.0, -1.0,  0.0
   ];
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+  triangleVertexPositionBuffer.itemSize = 3;
+  triangleVertexPositionBuffer.numItems = 3;
+
+  triangleVertexColorBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
+  var colors = [
+    1.0, 0.0, 0.0, 1.0,
+    0.0, 1.0, 0.0, 1.0,
+    0.0, 0.0, 1.0, 1.0
+  ];
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+  triangleVertexColorBuffer.itemSize = 4;
+  triangleVertexColorBuffer.numItems = 3;
+
 }
 
 
@@ -184,21 +182,34 @@ function drawScene() {
 
   // 如果要使用一个数组对象，就需要调用 gl.bindBuffer 来将其指定为当前数组对象，然后在调用
   // 代码进行操作。
-  gl.bindBuffer(gl.ARRAY_BUFFER, squareVerticesBuffer);
-  gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
-  
+  gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+  /**
+   * // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+    var size = 3;          // 3 components per iteration (Must be 1, 2, 3 or 4)
+    var type = gl.FLOAT;   // the data is 32bit floats
+    var normalize = false; // don't normalize the data, 对于 gl.FLOAT 来说，这个参数是没有效果的
+    var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
+    var offset = 0;        // start at the beginning of the buffer
+    gl.vertexAttribPointer(
+    positionAttributeLocation, size, type, normalize, stride, offset)
+   */
+  // it binds the current ARRAY_BUFFER to the attribute.
+  // 第一个参数: A GLuint specifying the index of the vertex attribute that is to be modified.
+  gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+  gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, squareVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
   // setMatrixUniforms 函数将会超越网页文件的范畴，将以上的矩阵操作推送到到显卡
   setMatrixUniforms();
-
-  // 换一种通俗的说法就是“用之前我给你的顶点数组来绘制一个三角形，顶点从 0 到 3”。
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
 
   mvTranslate([3, 0.0, 0]);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVerticesBuffer);
-  gl.vertexAttribPointer(vertexPositionAttribute, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+  gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
+  gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, triangleVertexColorBuffer.itemSize,gl.FLOAT, false, 0, 0);
   setMatrixUniforms();
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 3);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, triangleVertexPositionBuffer.numItems);
 }
 
 function loadIdentity() {
